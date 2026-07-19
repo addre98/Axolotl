@@ -535,6 +535,7 @@ function getAccountAvatarUrl(account: MinecraftCredential) {
 
 async function setAccount(account: MinecraftCredential) {
 	defaultUser.value = account.profile.id
+	equippedSkin.value = null
 	await set_default_user(account.profile.id).catch(handleError)
 	await refreshValues()
 	emit('change')
