@@ -681,6 +681,7 @@ const {
 	preferredGameVersion: contentInstallPreferredGameVersion,
 	releaseGameVersions: contentInstallReleaseGameVersions,
 	projectInfo: contentInstallProjectInfo,
+	symlinkTarget: contentInstallSymlinkTarget,
 	handleInstallToInstance,
 	handleCreateAndInstall,
 	handleNavigate: handleContentInstallNavigate,
@@ -710,6 +711,7 @@ const {
 	setUpdateToPlayModal: setServerUpdateToPlayModal,
 	setAddServerToInstanceModal: setServerAddServerToInstanceModal,
 	playServerProject,
+	symlinkTarget: addServerSymlinkTarget,
 } = serverInstall
 
 const modInstallModal = ref()
@@ -820,8 +822,9 @@ async function handleCommand(e) {
 	}
 
 	if (e.event === 'RunMRPack') {
-		// RunMRPack should directly install a local mrpack given a path
-		if (e.path.endsWith('.mrpack')) {
+		// RunMRPack should directly install a local modpack file given a path;
+		// non-mrpack archives (CurseForge/MCBBS/HMCL/MultiMC zips) are format-sniffed by the backend
+		if (e.path.endsWith('.mrpack') || e.path.endsWith('.zip')) {
 			const location = { type: 'fromFile', path: e.path }
 			const preview = await install_get_modpack_preview(location).catch(handleError)
 			if (preview?.unknownFile) {
@@ -1552,6 +1555,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 		:preferred-game-version="contentInstallPreferredGameVersion"
 		:release-game-versions="contentInstallReleaseGameVersions"
 		:project-info="contentInstallProjectInfo"
+		:symlink-target="contentInstallSymlinkTarget"
 		@install="handleInstallToInstance"
 		@create-and-install="handleCreateAndInstall"
 		@navigate="handleContentInstallNavigate"
@@ -1562,7 +1566,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 		@create-anyway="handleModpackDuplicateCreateAnyway"
 		@go-to-instance="handleModpackDuplicateGoToInstance"
 	/>
-	<AddServerToInstanceModal ref="addServerToInstanceModal" />
+	<AddServerToInstanceModal ref="addServerToInstanceModal" :symlink-target="addServerSymlinkTarget" />
 	<ContentUpdaterModal
 		ref="incompatibilityWarningModal"
 		mode="incompatibility-warning"
