@@ -8,6 +8,7 @@ export type GameInstance = {
 
 	name: string
 	icon_path?: string
+	symlink_target?: string | null
 
 	game_version: string
 	protocol_version?: number
@@ -99,7 +100,7 @@ export type Instance = GameInstance
 
 type ReleaseChannel = 'release' | 'beta' | 'alpha'
 
-export type InstanceLoader = 'vanilla' | 'forge' | 'fabric' | 'quilt' | 'neoforge'
+export type InstanceLoader = 'vanilla' | 'forge' | 'fabric' | 'quilt' | 'neoforge' | 'optifine'
 
 type ContentFile = {
 	enabled: boolean
