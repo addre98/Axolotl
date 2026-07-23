@@ -182,10 +182,31 @@ pub async fn import_mmc(
     instance_id: &str,
     reporter: InstallProgressReporter,
     details: InstallPhaseDetails,
+    symlink: bool,
 ) -> crate::Result<()> {
     let mmc_instance_path =
         mmc_base_path.join("instances").join(instance_folder);
+    import_mmc_instance_dir(
+        mmc_instance_path,
+        Some(mmc_base_path.join("icons")),
+        instance_id,
+        reporter,
+        details,
+        symlink,
+    )
+    .await
+}
 
+/// Imports an MMC/Prism instance directly from its instance directory, used
+/// both for launcher-folder imports and extracted MultiMC export zips.
+pub(crate) async fn import_mmc_instance_dir(
+    mmc_instance_path: PathBuf,
+    icons_dir: Option<PathBuf>,
+    instance_id: &str,
+    reporter: InstallProgressReporter,
+    details: InstallPhaseDetails,
+    symlink: bool,
+) -> crate::Result<()> {
     let mmc_pack = serde_json::from_str::<MMCPack>(
         &io::read_any_encoding_to_string(
             &mmc_instance_path.join("mmc-pack.json"),
@@ -199,8 +220,21 @@ pub async fn import_mmc(
 
     // Re-cache icon
     let icon = if let Some(icon_key) = instance_cfg.icon_key {
-        let icon_path = mmc_base_path.join("icons").join(icon_key);
-        import::recache_icon(icon_path).await?
+        let mut icon = None;
+        for icon_dir in
+            icons_dir.iter().chain(std::iter::once(&mmc_instance_path))
+        {
+            let icon_path = icon_dir.join(&icon_key);
+            icon = import::recache_icon(icon_path).await?;
+            if icon.is_none() {
+                let icon_path = icon_dir.join(format!("{icon_key}.png"));
+                icon = import::recache_icon(icon_path).await?;
+            }
+            if icon.is_some() {
+                break;
+            }
+        }
+        icon
     } else {
         None
     };
@@ -235,17 +269,17 @@ pub async fn import_mmc(
 
                 // Modrinth Managed Pack
                 // Kept separate as we may in the future want to add special handling for modrinth managed packs
-                import_mmc_unmanaged(instance_id, minecraft_folder, "Imported Modrinth Modpack".to_string(), description, mmc_pack, reporter, details).await?;
+                import_mmc_unmanaged(instance_id, minecraft_folder, "Imported Modrinth Modpack".to_string(), description, mmc_pack, reporter, details, symlink).await?;
             }
             Some(MMCManagedPackType::Flame | MMCManagedPackType::ATLauncher) => {
                 // For flame/atlauncher managed packs
                 // Treat as unmanaged, but with 'minecraft' folder instead of '.minecraft'
-                import_mmc_unmanaged(instance_id, minecraft_folder, "Imported Modpack".to_string(), description, mmc_pack, reporter, details).await?;
+                import_mmc_unmanaged(instance_id, minecraft_folder, "Imported Modpack".to_string(), description, mmc_pack, reporter, details, symlink).await?;
             },
             Some(_) => {
                 // For managed packs that aren't modrinth, flame, atlauncher
                 // Treat as unmanaged
-                import_mmc_unmanaged(instance_id, minecraft_folder, "ImportedModpack".to_string(), description, mmc_pack, reporter, details).await?;
+                import_mmc_unmanaged(instance_id, minecraft_folder, "ImportedModpack".to_string(), description, mmc_pack, reporter, details, symlink).await?;
             },
             _ => return Err(crate::ErrorKind::InputError("Instance is managed, but managed pack type not specified in instance.cfg".to_string()).into())
         }
@@ -259,6 +293,7 @@ pub async fn import_mmc(
             mmc_pack,
             reporter,
             details,
+            symlink,
         )
         .await?;
     }
@@ -273,6 +308,7 @@ async fn import_mmc_unmanaged(
     mmc_pack: MMCPack,
     reporter: InstallProgressReporter,
     details: InstallPhaseDetails,
+    symlink: bool,
 ) -> crate::Result<()> {
     // Pack dependencies stored in mmc-pack.json, we convert to .mrpack pack dependencies
     let dependencies = mmc_pack
@@ -332,6 +368,7 @@ async fn import_mmc_unmanaged(
         &state.io_semaphore,
         reporter,
         details,
+        symlink,
     )
     .await?;
     Ok(())
