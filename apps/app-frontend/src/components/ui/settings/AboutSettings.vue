@@ -2,7 +2,7 @@
 import { CheckIcon, CopyIcon, ExternalIcon, WrenchIcon } from '@modrinth/assets'
 import { ButtonStyled, defineMessages, injectNotificationManager, useVIntl } from '@modrinth/ui'
 import { getVersion } from '@tauri-apps/api/app'
-import { ref } from 'vue'
+import { inject, ref } from 'vue'
 
 import AfdianIcon from '@/assets/external/afdian.png'
 import QqIcon from '@/assets/external/qq.svg?component'
@@ -15,6 +15,7 @@ const version = await getVersion()
 const isDevEnvironment = await isDev()
 const copied = ref(false)
 const { addNotification } = injectNotificationManager()
+const replayOnboarding = inject<(mode: 'main' | 'instance') => Promise<void>>('replayOnboarding')
 
 async function copyQqGroupNumber() {
 	await navigator.clipboard.writeText(AxolotlBrandConfig.qqGroupNumber)
@@ -222,6 +223,14 @@ function triggerTestNotificationError() {
 					<ExternalIcon class="size-5 shrink-0 text-secondary" />
 				</a>
 			</div>
+		</div>
+
+		<div class="flex flex-wrap gap-2">
+			<ButtonStyled>
+				<button @click="replayOnboarding?.('main')">
+					{{ formatMessage(messages.replayOnboarding) }}
+				</button>
+			</ButtonStyled>
 		</div>
 
 		<div class="flex flex-col items-start gap-3">

@@ -85,6 +85,7 @@ pub struct Settings {
     pub custom_background_path: Option<String>,
     pub custom_background_blur: u32,
     pub custom_background_opacity: u32,
+    pub sidebar_instance_count: u32,
 
     pub telemetry: bool,
     pub discord_rpc: bool,
@@ -92,6 +93,8 @@ pub struct Settings {
     pub personalized_ads: bool,
 
     pub onboarded: bool,
+    pub onboarding_version: usize,
+    pub onboarding_instance_tour_completed: bool,
 
     pub extra_launch_args: Vec<String>,
     pub custom_env_vars: Vec<(String, String)>,
@@ -148,13 +151,14 @@ impl Settings {
                 minecraft_file_source, modrinth_source, curseforge_source,
                 theme, locale, default_page, collapsed_navigation, hide_nametag_skins_page, advanced_rendering, native_decorations,
                 discord_rpc, developer_mode, telemetry, personalized_ads,
-                onboarded,
+                onboarded, onboarding_version, onboarding_instance_tour_completed,
                 json(extra_launch_args) extra_launch_args, json(custom_env_vars) custom_env_vars,
                 mc_memory_max, mc_force_fullscreen, mc_game_resolution_x, mc_game_resolution_y, hide_on_process_start,
                 hook_pre_launch, hook_wrapper, hook_post_exit,
                 custom_dir, prev_custom_dir, migrated, json(feature_flags) feature_flags, toggle_sidebar,
                 skipped_update, pending_update_toast_for_version, auto_download_updates, accent_color,
                 custom_background_path, custom_background_blur, custom_background_opacity,
+                sidebar_instance_count,
                 version
             FROM settings
             "
@@ -193,11 +197,16 @@ impl Settings {
             custom_background_path: res.custom_background_path,
             custom_background_blur: res.custom_background_blur as u32,
             custom_background_opacity: res.custom_background_opacity as u32,
+            sidebar_instance_count: res.sidebar_instance_count as u32,
             telemetry: res.telemetry == 1,
             discord_rpc: res.discord_rpc == 1,
             developer_mode: res.developer_mode == 1,
             personalized_ads: res.personalized_ads == 1,
             onboarded: res.onboarded == 1,
+            onboarding_version: res.onboarding_version as usize,
+            onboarding_instance_tour_completed: res
+                .onboarding_instance_tour_completed
+                == 1,
             extra_launch_args: res
                 .extra_launch_args
                 .as_ref()
@@ -254,6 +263,7 @@ impl Settings {
         let custom_background_blur = self.custom_background_blur.min(40) as i32;
         let custom_background_opacity =
             self.custom_background_opacity.clamp(10, 100) as i32;
+        let sidebar_instance_count = self.sidebar_instance_count.min(50) as i32;
         let version = self.version as i64;
         let minecraft_metadata_source = self.minecraft_metadata_source.as_str();
         let minecraft_file_source = self.minecraft_file_source.as_str();
@@ -325,7 +335,10 @@ impl Settings {
                 curseforge_source = $42,
                 use_minecraft_mirror = $43,
                 use_modrinth_mirror = $44,
-                use_curseforge_mirror = $45
+                use_curseforge_mirror = $45,
+                onboarding_version = $46,
+                onboarding_instance_tour_completed = $47,
+                sidebar_instance_count = $48
             ",
             max_concurrent_writes,
             max_concurrent_downloads,
@@ -535,24 +548,35 @@ fn legacy_download_source(enabled: bool) -> DownloadSourceMode {
 }
 
 /// Accent color used for interactive controls and highlights.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+///
+/// Serialized as a plain string: either a preset name (`pink`, `orange`, ...)
+/// or `custom:#rrggbb` for a user-defined color. Unknown values fall back to
+/// [`AccentColor::Pink`], keeping older builds forward-compatible.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccentColor {
     Pink,
     Orange,
     Green,
     Blue,
     Purple,
+    Custom(String),
 }
 
 impl AccentColor {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             AccentColor::Pink => "pink",
             AccentColor::Orange => "orange",
             AccentColor::Green => "green",
             AccentColor::Blue => "blue",
             AccentColor::Purple => "purple",
+            AccentColor::Custom(value) => {
+                if Self::is_valid_custom(value) {
+                    value
+                } else {
+                    "pink"
+                }
+            }
         }
     }
 
@@ -562,8 +586,43 @@ impl AccentColor {
             "green" => AccentColor::Green,
             "blue" => AccentColor::Blue,
             "purple" => AccentColor::Purple,
-            _ => AccentColor::Pink,
+            other => match Self::parse_custom(other) {
+                Some(custom) => custom,
+                None => AccentColor::Pink,
+            },
         }
+    }
+
+    fn is_valid_custom(string: &str) -> bool {
+        string.strip_prefix("custom:#").is_some_and(|hex| {
+            hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit())
+        })
+    }
+
+    fn parse_custom(string: &str) -> Option<AccentColor> {
+        if Self::is_valid_custom(string) {
+            Some(AccentColor::Custom(string.to_ascii_lowercase()))
+        } else {
+            None
+        }
+    }
+}
+
+impl Serialize for AccentColor {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for AccentColor {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        Ok(AccentColor::from_string(&value))
     }
 }
 
@@ -650,6 +709,66 @@ impl DefaultPage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accent_color_parses_preset_values() {
+        assert_eq!(AccentColor::from_string("pink"), AccentColor::Pink);
+        assert_eq!(AccentColor::from_string("orange"), AccentColor::Orange);
+        assert_eq!(AccentColor::from_string("green"), AccentColor::Green);
+        assert_eq!(AccentColor::from_string("blue"), AccentColor::Blue);
+        assert_eq!(AccentColor::from_string("purple"), AccentColor::Purple);
+    }
+
+    #[test]
+    fn accent_color_normalizes_custom_hex_to_lowercase() {
+        assert_eq!(
+            AccentColor::from_string("custom:#DB2777"),
+            AccentColor::Custom("custom:#db2777".to_owned())
+        );
+    }
+
+    #[test]
+    fn accent_color_falls_back_to_pink_on_invalid_values() {
+        for value in [
+            "",
+            "magenta",
+            "custom:",
+            "custom:#db27",
+            "custom:#db2777aa",
+            "custom:#db277g",
+        ] {
+            assert_eq!(AccentColor::from_string(value), AccentColor::Pink);
+        }
+    }
+
+    #[test]
+    fn accent_color_serializes_as_plain_strings() {
+        let custom = AccentColor::Custom("custom:#db2777".to_owned());
+        assert_eq!(
+            serde_json::to_string(&AccentColor::Blue).unwrap(),
+            "\"blue\""
+        );
+        assert_eq!(
+            serde_json::to_string(&custom).unwrap(),
+            "\"custom:#db2777\""
+        );
+    }
+
+    #[test]
+    fn accent_color_serializes_invalid_custom_as_pink() {
+        let invalid = AccentColor::Custom("not-a-color".to_owned());
+        assert_eq!(invalid.as_str(), "pink");
+        assert_eq!(serde_json::to_string(&invalid).unwrap(), "\"pink\"");
+    }
+
+    #[test]
+    fn accent_color_deserializes_from_plain_strings() {
+        let color: AccentColor =
+            serde_json::from_str("\"custom:#1bd96a\"").unwrap();
+        assert_eq!(color, AccentColor::Custom("custom:#1bd96a".to_owned()));
+        let preset: AccentColor = serde_json::from_str("\"purple\"").unwrap();
+        assert_eq!(preset, AccentColor::Purple);
+    }
 
     #[test]
     fn download_source_mode_uses_stable_wire_values() {

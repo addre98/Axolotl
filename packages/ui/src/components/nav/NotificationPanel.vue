@@ -158,7 +158,7 @@ async function handleErrorAction(notification: WebNotification): Promise<void> {
 	try {
 		await onErrorAction(notification)
 	} finally {
-		delete exporting.value[notification.id]
+		Reflect.deleteProperty(exporting.value, notification.id)
 	}
 }
 

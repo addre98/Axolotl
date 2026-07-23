@@ -102,7 +102,7 @@
 					</div>
 				</template>
 				<template #actions>
-					<div class="flex gap-2">
+					<div data-onboarding-id="instance-actions" class="flex gap-2">
 						<ButtonStyled
 							v-if="
 								[

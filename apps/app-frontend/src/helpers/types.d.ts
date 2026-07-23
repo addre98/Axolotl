@@ -100,7 +100,7 @@ export type Instance = GameInstance
 
 type ReleaseChannel = 'release' | 'beta' | 'alpha'
 
-export type InstanceLoader = 'vanilla' | 'forge' | 'fabric' | 'quilt' | 'neoforge'
+export type InstanceLoader = 'vanilla' | 'forge' | 'fabric' | 'quilt' | 'neoforge' | 'optifine'
 
 type ContentFile = {
 	enabled: boolean
@@ -166,7 +166,7 @@ type AppSettings = {
 	max_concurrent_writes: number
 
 	theme: 'dark' | 'light' | 'oled' | 'system'
-	accent_color: 'pink' | 'orange' | 'green' | 'blue' | 'purple'
+	accent_color: 'pink' | 'orange' | 'green' | 'blue' | 'purple' | `custom:#${string}`
 	default_page: 'Home' | 'DiscoverContent' | 'Library'
 	collapsed_navigation: boolean
 	advanced_rendering: boolean
@@ -181,6 +181,8 @@ type AppSettings = {
 	developer_mode: boolean
 
 	onboarded: boolean
+	onboarding_version: number
+	onboarding_instance_tour_completed: boolean
 
 	extra_launch_args: string[]
 	custom_env_vars: [string, string][]

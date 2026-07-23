@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { setModrinthSourceMode } from '@/config'
 import type { Hooks, MemorySettings, WindowSize } from '@/helpers/types'
-import type { AccentColor, ColorTheme, FeatureFlag } from '@/store/theme.ts'
+import type { AccentColorSetting, ColorTheme, FeatureFlag } from '@/store/theme.ts'
 
 // Settings object
 /*
@@ -60,7 +60,7 @@ export type AppSettings = {
 	curseforge_source: DownloadSourceMode
 
 	theme: ColorTheme
-	accent_color: AccentColor
+	accent_color: AccentColorSetting
 	locale: string
 	default_page: 'Home' | 'DiscoverContent' | 'Library'
 	collapsed_navigation: boolean
@@ -71,10 +71,13 @@ export type AppSettings = {
 	custom_background_path: string | null
 	custom_background_blur: number
 	custom_background_opacity: number
+	sidebar_instance_count: number
 
 	telemetry: boolean
 	discord_rpc: boolean
 	onboarded: boolean
+	onboarding_version: number
+	onboarding_instance_tour_completed: boolean
 
 	extra_launch_args: string[]
 	custom_env_vars: [string, string][]
